@@ -6,52 +6,53 @@ package org.arith
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-@Test
-fun givenAnEmptySourceReturnsAnEOFToken() {
-    val lexer = Lexer("")
-    val (token, lexerr) = lex(lexer)
+class LexerTest private constructor() {
+    @Test
+    fun givenAnEmptySourceReturnsAnEOFToken() {
+        val lexer = Lexer("")
+        val (token, lexerr) = lex(lexer)
 
-    assertEquals(lexerr, lexer)
+        assertEquals(lexerr, lexer)
 
-    assertEquals(token, Token(null, TokenType.EOF, 0))
-}
+        assertEquals(token, Token(null, TokenType.EOF, 0))
+    }
 
-@Test
-fun givenWhiteSpaceIgnoresIt() {
-    val lexer = Lexer("   1")
-    val (token, lexerr) = lex(lexer)
+    @Test
+    fun givenWhiteSpaceIgnoresIt() {
+        val lexer = Lexer("   1")
+        val (token, lexerr) = lex(lexer)
 
-    assertEquals(lexerr.source, "")
-    assertEquals(lexerr.column, 4)
+        assertEquals(lexerr.source, "")
+        assertEquals(lexerr.column, 4)
 
-    assertEquals(token, Token("1", TokenType.NUM, 3))
-}
+        assertEquals(token, Token("1", TokenType.NUM, 3))
+    }
 
-@Test
-fun givenAWholeNumberReturnsAWholeNumber() {
-    val lexer = Lexer("1")
-    val (token, lexerr) = lex(lexer)
+    @Test
+    fun givenAWholeNumberReturnsAWholeNumber() {
+        val lexer = Lexer("1")
+        val (token, lexerr) = lex(lexer)
 
-    assertEquals(lexerr.source, "")
-    assertEquals(lexerr.column, 1)
+        assertEquals(lexerr.source, "")
+        assertEquals(lexerr.column, 1)
 
-    assertEquals(token, Token("1", TokenType.NUM, 0))
-}
+        assertEquals(token, Token("1", TokenType.NUM, 0))
+    }
 
-@Test
-fun givenADecimalReturnsADecimal() {
-    val lexer = Lexer("1.0")
-    val (token, lexerr) = lex(lexer)
+    @Test
+    fun givenADecimalReturnsADecimal() {
+        val lexer = Lexer("1.0")
+        val (token, lexerr) = lex(lexer)
 
-    assertEquals(lexerr.source, "")
-    assertEquals(lexerr.column, 3)
+        assertEquals(lexerr.source, "")
+        assertEquals(lexerr.column, 3)
 
-    assertEquals(token, Token("1.0", TokenType.NUM, 0))
-}
+        assertEquals(token, Token("1.0", TokenType.NUM, 0))
+    }
 
-@Test
-fun givenASourceContainingAllSingleCharsReturnsTheAppropriateTokens() {
-    fun opPrecedence(lexeme: String): Precedence =
+    @Test
+    fun givenASourceContainingAllSingleCharsReturnsTheAppropriateTokens() {
+        fun opPrecedence(lexeme: String): Precedence =
             when (lexeme) {
                 "+", "-" -> Precedence.TERM
                 "*", "/", "%" -> Precedence.FACTOR
@@ -59,7 +60,7 @@ fun givenASourceContainingAllSingleCharsReturnsTheAppropriateTokens() {
                 else -> Precedence.NONE
             }
 
-    fun tokenTypeOfSingle(lexeme: String) =
+        fun tokenTypeOfSingle(lexeme: String) =
             when (lexeme) {
                 "!" -> TokenType.BANG
                 "*" -> TokenType.STAR
@@ -74,81 +75,81 @@ fun givenASourceContainingAllSingleCharsReturnsTheAppropriateTokens() {
                 else -> TokenType.ERROR
             }
 
-    "!*^+-%/(,)".forEach {
-        val source = it.toString()
+        "!*^+-%/(,)".forEach {
+            val source = it.toString()
 
-        val prec = opPrecedence(source)
+            val prec = opPrecedence(source)
 
-        val lexer = Lexer(source)
-        val (token, lexerr) = lex(lexer)
+            val lexer = Lexer(source)
+            val (token, lexerr) = lex(lexer)
 
-        assertEquals(lexerr.source, "")
-        assertEquals(lexerr.column, 1)
+            assertEquals(lexerr.source, "")
+            assertEquals(lexerr.column, 1)
 
-        assertEquals(
+            assertEquals(
                 token,
                 Token(
-                        source,
-                        tokenTypeOfSingle(source),
-                        0,
-                        prec,
-                        source != "^" && prec != Precedence.NONE
+                    source,
+                    tokenTypeOfSingle(source),
+                    0,
+                    prec,
+                    source != "^" && prec != Precedence.NONE
                 )
-        )
+            )
+        }
     }
-}
 
-@Test
-fun givenAnInvalidDecimalReturnsAnAppropriateError() {
-    val lexer = Lexer("1..0")
-    val (token, lexerr) = lex(lexer)
+    @Test
+    fun givenAnInvalidDecimalReturnsAnAppropriateError() {
+        val lexer = Lexer("1..0")
+        val (token, lexerr) = lex(lexer)
 
-    assertEquals(lexerr.source, "1..0")
-    assertEquals(lexerr.column, 0)
+        assertEquals(lexerr.source, "1..0")
+        assertEquals(lexerr.column, 0)
 
-    assertEquals(
+        assertEquals(
             token,
             Token(
-                    "Syntax error: floating point number cannot contain more than one '.'",
-                    TokenType.ERROR,
-                    0,
-                    Precedence.NONE
+                "Syntax error: floating point number cannot contain more than one '.'",
+                TokenType.ERROR,
+                0,
+                Precedence.NONE
             )
-    )
-}
+        )
+    }
 
-@Test
-fun givenAnKnownFunctionNameReturnsAnAppropriateToken() {
-    listOf(
-                    "abs",
-                    "acos",
-                    "acot",
-                    "acsc",
-                    "asec",
-                    "asin",
-                    "atan",
-                    "ceil",
-                    "cos",
-                    "cosh",
-                    "cot",
-                    "csc",
-                    "exp",
-                    "exp2",
-                    "ln",
-                    "log",
-                    "log10",
-                    "rad",
-                    "round",
-                    "sec",
-                    "sin",
-                    "sinh",
-                    "sqrt",
-                    "tan",
-                    "tanh",
-                    "deg",
-                    "floor",
-                    "nroot"
-            )
+    @Test
+    fun givenAnKnownFunctionNameReturnsAnAppropriateToken() {
+        listOf(
+            "abs",
+            "acos",
+            "acot",
+            "acsc",
+            "asec",
+            "asin",
+            "atan",
+            "ceil",
+            "cos",
+            "cosh",
+            "cot",
+            "csc",
+            "exp",
+            "exp2",
+            "ln",
+            "log",
+            "log10",
+            "rad",
+            "round",
+            "sec",
+            "sin",
+            "sinh",
+            "sqrt",
+            "tan",
+            "tanh",
+            "deg",
+            "floor",
+            "nroot"
+        )
             .forEach {
                 val lexer = Lexer(it)
                 val (token, lexerr) = lex(lexer)
@@ -157,59 +158,61 @@ fun givenAnKnownFunctionNameReturnsAnAppropriateToken() {
                 assertEquals(lexerr.column, it.length)
 
                 assertEquals(
-                        token.copy(function = null),
-                        Token(it, TokenType.FUNCTION, 0, Precedence.NONE)
+                    token.copy(function = null),
+                    Token(it, TokenType.FUNCTION, 0, Precedence.NONE)
                 )
             }
+    }
+
+    @Test
+    fun givenAnUnknownFunctionNameReturnsAnError() {
+        val lexer = Lexer("abc")
+        val (token, lexerr) = lex(lexer)
+
+        assertEquals(lexerr.source, "abc")
+        assertEquals(lexerr.column, 0)
+
+        assertEquals(token, Token("Unknown function name", TokenType.ERROR, 0, Precedence.NONE))
+    }
+
+    @Test
+    fun givenAnUnknownLexemeReturnsAnError() {
+        val lexer = Lexer(">")
+        val (token, lexerr) = lex(lexer)
+
+        assertEquals(lexerr.source, ">")
+        assertEquals(lexerr.column, 0)
+
+        assertEquals(token, Token("Unknown token", TokenType.ERROR, 0, Precedence.NONE))
+    }
+
+    @Test
+    fun givenANegativeNumberReturnsTheAppropriateTokens() {
+        val lexer = Lexer("-10")
+        val (token, lexerr) = lex(lexer)
+
+        assertEquals(lexerr.source, "10")
+        assertEquals(lexerr.column, 1)
+
+        assertEquals(token, Token("-", TokenType.MINUS, 0, Precedence.UNARY, true))
+    }
+
+    @Test
+    fun givenANegativeNumberBetweenAnExprReturnsTheAppropriateTokens() {
+        val lexer = Lexer("+ -10")
+        val (token, lexerr) = lex(lexer)
+
+        assertEquals(lexerr.source, " -10")
+        assertEquals(lexerr.column, 1)
+
+        assertEquals(token, Token("+", TokenType.PLUS, 0, Precedence.TERM, true))
+
+        val (tokenn, lexerrr) = lex(lexerr)
+
+        assertEquals(lexerrr.source, "10")
+        assertEquals(lexerrr.column, 3)
+
+        assertEquals(tokenn, Token("-", TokenType.MINUS, 2, Precedence.UNARY, true))
+    }
 }
 
-@Test
-fun givenAnUnknownFunctionNameReturnsAnError() {
-    val lexer = Lexer("abc")
-    val (token, lexerr) = lex(lexer)
-
-    assertEquals(lexerr.source, "abc")
-    assertEquals(lexerr.column, 0)
-
-    assertEquals(token, Token("Unknown function name", TokenType.ERROR, 0, Precedence.NONE))
-}
-
-@Test
-fun givenAnUnknownLexemeReturnsAnError() {
-    val lexer = Lexer(">")
-    val (token, lexerr) = lex(lexer)
-
-    assertEquals(lexerr.source, ">")
-    assertEquals(lexerr.column, 0)
-
-    assertEquals(token, Token("Unknown token", TokenType.ERROR, 0, Precedence.NONE))
-}
-
-@Test
-fun givenANegativeNumberReturnsTheAppropriateTokens() {
-    val lexer = Lexer("-10")
-    val (token, lexerr) = lex(lexer)
-
-    assertEquals(lexerr.source, "10")
-    assertEquals(lexerr.column, 1)
-
-    assertEquals(token, Token("-", TokenType.MINUS, 0, Precedence.UNARY, true))
-}
-
-@Test
-fun givenANegativeNumberBetweenAnExprReturnsTheAppropriateTokens() {
-    val lexer = Lexer("+ -10")
-    val (token, lexerr) = lex(lexer)
-
-    assertEquals(lexerr.source, " -10")
-    assertEquals(lexerr.column, 1)
-
-    assertEquals(token, Token("+", TokenType.PLUS, 0, Precedence.TERM, true))
-
-    val (tokenn, lexerrr) = lex(lexerr)
-
-    assertEquals(lexerrr.source, "10")
-    assertEquals(lexerrr.column, 3)
-
-    assertEquals(tokenn, Token("-", TokenType.MINUS, 2, Precedence.UNARY, true))
-}
