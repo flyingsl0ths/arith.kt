@@ -1,19 +1,17 @@
 package org.arith.utils
 
-
 fun <T> atLeastNValues(n: Int): (List<T>) -> Boolean = { values: List<T> -> values.size == n }
 
-fun <T> guard(
-    cause: Pair<String, String>,
-    predicate: (List<T>) -> Boolean,
-    f: (List<T>) -> T
-): (List<T>) -> Either<String, T> = {
+fun <T, U> guard(
+    predicate: (T) -> Boolean,
+    l: (T) -> U,
+    r: (T) -> U
+): (T) -> U = {
     if (!predicate(it)) {
-        left("${cause.first}: ${cause.second}")
+        l(it)
     } else {
-        right(f(it))
+        r(it)
     }
-
 }
 
 fun <T> atLeastNArgs(
@@ -21,4 +19,6 @@ fun <T> atLeastNArgs(
     n: Int = 1,
     f: (List<T>) -> T
 ): (List<T>) -> Either<String, T> =
-    guard(functionName to "Expects one argument", atLeastNValues(n), f)
+    guard(atLeastNValues(n), {
+        left("$functionName: Expects $n argument(s)")
+    }) { right(f(it)) }

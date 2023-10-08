@@ -21,6 +21,40 @@ data class Token(
 )
 
 data class Lexer(var source: String, var column: Int = 0, var lastTokenWasOp: Boolean = false)
+val Functions: Map<String, Pair<Calculation, Arity>> =
+    mapOf(
+        "abs" to (atLeastNArgs("abs") { args: List<Double> -> abs(args.first()) } to Arity(1)),
+        "acos" to (atLeastNArgs("acos") { args: List<Double> -> acos(args.first()) } to Arity(1)),
+        "acot" to (atLeastNArgs("acot") { args: List<Double> -> atan(reciprocal(args.first())) } to Arity(1)),
+        "acsc" to (atLeastNArgs("acsc") { args: List<Double> -> asin(reciprocal(args.first())) } to Arity(1)),
+        "asec" to (atLeastNArgs("asec") { args: List<Double> -> acos(reciprocal(args.first())) } to Arity(1)),
+        "asin" to (atLeastNArgs("asin") { args: List<Double> -> asin(args.first()) } to Arity(1)),
+        "atan" to (atLeastNArgs("atan") { args: List<Double> -> atan(args.first()) } to Arity(1)),
+        "ceil" to (atLeastNArgs("ceil") { args: List<Double> -> ceil(args.first()) } to Arity(1)),
+        "cos" to (atLeastNArgs("cost") { args: List<Double> -> cos(args.first()) } to Arity(1)),
+        "cosh" to (atLeastNArgs("cosh") { args: List<Double> -> cosh(args.first()) } to Arity(1)),
+        "cot" to (atLeastNArgs("cot") { args: List<Double> -> reciprocal(tan(args.first())) } to Arity(1)),
+        "csc" to (atLeastNArgs("csc") { args: List<Double> -> reciprocal(sin(args.first())) } to Arity(1)),
+        "exp" to (atLeastNArgs("exp") { args: List<Double> -> exp(args.first()) } to Arity(1)),
+        "exp2" to (atLeastNArgs("exp2") { args: List<Double> -> 2.0.pow(args.first()) } to Arity(1)),
+        "ln" to (atLeastNArgs("ln") { args: List<Double> -> ln(args.first()) } to Arity(1)),
+        "log" to (atLeastNArgs("log", n = 2) { args: List<Double> -> ln(args.first()) / ln(args[1]) } to Arity(2)),
+        "log10" to (atLeastNArgs("log10") { args: List<Double> -> log10(args.first()) } to Arity(1)),
+        "rad" to (atLeastNArgs("rad") { args: List<Double> -> Math.toRadians(args.first()) } to Arity(1)),
+        "round" to (atLeastNArgs("round") { args: List<Double> -> round(args.first()) } to Arity(1)),
+        "sec" to (atLeastNArgs("sec") { args: List<Double> -> reciprocal(cos(args.first())) } to Arity(1)),
+        "sin" to (atLeastNArgs("sin") { args: List<Double> -> sin(args.first()) } to Arity(1)),
+        "sinh" to (atLeastNArgs("sinh") { args: List<Double> -> sinh(args.first()) } to Arity(1)),
+        "sqrt" to (atLeastNArgs("sqrt") { args: List<Double> -> sqrt(args.first()) } to Arity(1)),
+        "tan" to (atLeastNArgs("tan") { args: List<Double> -> tan(args.first()) } to Arity(1)),
+        "tanh" to (atLeastNArgs("tanh") { args: List<Double> -> tanh(args.first()) } to Arity(1)),
+        "deg" to (atLeastNArgs("deg") { args: List<Double> -> Math.toDegrees(args.first()) } to Arity(1)),
+        "floor" to (atLeastNArgs("floor") { args: List<Double> -> floor(args.first()) } to Arity(1)),
+        "nroot" to
+                (atLeastNArgs("nroot", n = 2) { args: List<Double> ->
+                    args.first().pow(1.0 / args[1])
+                } to Arity(2))
+    )
 
 enum class TokenType {
     BANG,
@@ -174,40 +208,6 @@ private fun parseFunction(lexer: Lexer) =
             }
         }
 
-private fun fromFunctionName(functionName: String): ((List<Double>) -> Either<String, Double>)? =
-        when (functionName) {
-            "abs" -> atLeastNArgs("abs") { args: List<Double> -> abs(args.first()) }
-            "acos" -> atLeastNArgs("acos") { args: List<Double> -> acos(args.first()) }
-            "acot" -> atLeastNArgs("acot") { args: List<Double> -> atan(1.0 / args.first()) }
-            "acsc" -> atLeastNArgs("acsc") { args: List<Double> -> asin(1.0 / args.first()) }
-            "asec" -> atLeastNArgs("asec") { args: List<Double> -> acos(1.0 / args.first()) }
-            "asin" -> atLeastNArgs("asin") { args: List<Double> -> asin(args.first()) }
-            "atan" -> atLeastNArgs("atan") { args: List<Double> -> atan(args.first()) }
-            "ceil" -> atLeastNArgs("ceil") { args: List<Double> -> ceil(args.first()) }
-            "cos" -> atLeastNArgs("cost") { args: List<Double> -> cos(args.first()) }
-            "cosh" -> atLeastNArgs("cosh") { args: List<Double> -> cosh(args.first()) }
-            "cot" -> atLeastNArgs("cot") { args: List<Double> -> reciprocal(tan(args.first())) }
-            "csc" -> atLeastNArgs("csc") { args: List<Double> -> reciprocal(sin(args.first())) }
-            "exp" -> atLeastNArgs("exp") { args: List<Double> -> exp(args.first()) }
-            "exp2" -> atLeastNArgs("exp2") { args: List<Double> -> 2.0.pow(args.first()) }
-            "ln" -> atLeastNArgs("ln") { args: List<Double> -> ln(args.first()) }
-            "log" -> atLeastNArgs("log", 2) { args: List<Double> -> ln(args.first()) / ln(args[1]) }
-            "log10" -> atLeastNArgs("log10") { args: List<Double> -> log10(args.first()) }
-            "rad" -> atLeastNArgs("rad") { args: List<Double> -> Math.toRadians(args.first()) }
-            "round" -> atLeastNArgs("round") { args: List<Double> -> round(args.first()) }
-            "sec" -> atLeastNArgs("sec") { args: List<Double> -> reciprocal(cos(args.first())) }
-            "sin" -> atLeastNArgs("sin") { args: List<Double> -> sin(args.first()) }
-            "sinh" -> atLeastNArgs("sinh") { args: List<Double> -> sinh(args.first()) }
-            "sqrt" -> atLeastNArgs("sqrt") { args: List<Double> -> sqrt(args.first()) }
-            "tan" -> atLeastNArgs("tan") { args: List<Double> -> tan(args.first()) }
-            "tanh" -> atLeastNArgs("tanh") { args: List<Double> -> tanh(args.first()) }
-            "deg" -> atLeastNArgs("deg") { args: List<Double> -> Math.toDegrees(args.first()) }
-            "floor" -> atLeastNArgs("floor") { args: List<Double> -> floor(args.first()) }
-            "nroot" ->
-                    atLeastNArgs("nroot", 2) { args: List<Double> ->
-                        args.first().pow(1.0 / args[1])
-                    }
-            else -> null
         }
 
 private fun reciprocal(n: Double): Double = 1.0 / n
