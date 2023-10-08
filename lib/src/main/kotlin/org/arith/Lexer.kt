@@ -88,10 +88,10 @@ fun lex(lexer: Lexer): Pair<Token, Lexer> {
 
     if (tokenType == TokenType.NUM && lexeme.count { it == '.' } > 1) {
         return Token(
-                "Syntax error: floating point number cannot contain more than one '.'",
-                TokenType.ERROR,
-                lexer.column,
-                Precedence.NONE
+            "Syntax error: floating point number cannot contain more than one '.'",
+            TokenType.ERROR,
+            lexer.column,
+            Precedence.NONE
         ) to lexerCopy
     } else if (tokenType == TokenType.ERROR) {
         return Token(lexeme, TokenType.ERROR, lexer.column, Precedence.NONE) to lexerCopy
