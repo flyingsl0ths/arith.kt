@@ -1,8 +1,10 @@
 package org.arith
 
-import kotlin.math.*
 import org.arith.utils.Either
 import org.arith.utils.atLeastNArgs
+import kotlin.math.*
+
+typealias Calculation = (List<Double>) -> Either<String, Double>
 
 enum class Precedence {
     NONE,
@@ -12,15 +14,15 @@ enum class Precedence {
 }
 
 data class Token(
-        val data: String?,
-        val type: TokenType,
-        val column: Int,
-        val precedence: Precedence = Precedence.NONE,
-        val leftAssociative: Boolean = false,
-        val function: ((List<Double>) -> Either<String, Double>)? = null
+    val lexeme: String?,
+    val type: TokenType,
+    val column: Int,
+    val precedence: Precedence = Precedence.NONE,
+    val leftAssociative: Boolean = false,
+    val function: Pair<Calculation, Arity>? = null
 )
 
-data class Lexer(var source: String, var column: Int = 0, var lastTokenWasOp: Boolean = false)
+data class Lexer(val source: String, val column: Int = 0, val lastTokenWasOp: Boolean = false)
 val Functions: Map<String, Pair<Calculation, Arity>> =
     mapOf(
         "abs" to (atLeastNArgs("abs") { args: List<Double> -> abs(args.first()) } to Arity(1)),
@@ -97,29 +99,25 @@ fun lex(lexer: Lexer): Pair<Token, Lexer> {
         return Token(lexeme, TokenType.ERROR, lexer.column, Precedence.NONE) to lexerCopy
     }
 
-    val result =
-            when (lexeme) {
-                TOKEN_ERROR ->
-                        Token("Unknown lexeme: $head", tokenType, lexer.column, Precedence.NONE) to
-                                lexerCopy
-                else ->
-                        Token(
-                                lexeme,
-                                tokenType,
-                                lexerCopy.column,
-                                if (isUnaryMinus) Precedence.UNARY else precedenceOf(lexeme),
-                                isLeftAssociative(tokenType, lexeme),
-                                if (tokenType == TokenType.FUNCTION) fromFunctionName(lexeme)
-                                else null
-                        ) to
-                                lexerCopy.copy(
-                                        source = lexerCopy.source.drop(lexeme.length),
-                                        column = lexerCopy.column + lexeme.length,
-                                        lastTokenWasOp = isOp(tokenType)
-                                )
-            }
-
-    return result
+    return Token(
+        lexeme,
+        tokenType,
+        lexerCopy.column,
+        if (isUnaryOp(
+                lexerCopy.lastTokenWasOp,
+                lexerCopy.column,
+                head,
+                lexerCopy.source
+            )
+        ) Precedence.UNARY else precedenceOf(lexeme),
+        isLeftAssociative(tokenType, lexeme),
+        if (tokenType == TokenType.FUNCTION) Functions[lexeme] else null
+    ) to
+            lexerCopy.copy(
+                source = lexerCopy.source.drop(lexeme.length),
+                column = lexerCopy.column + lexeme.length,
+                lastTokenWasOp = isOp(tokenType)
+            )
 }
 
 private fun isUnaryOp(lastTokenWasOp: Boolean, column: Int, head: Char, source: String): Boolean =
