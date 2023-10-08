@@ -78,7 +78,6 @@ class LexerTest private constructor() {
         "!*^+-%/(,)".forEach {
             val source = it.toString()
 
-            val prec = opPrecedence(source)
 
             val lexer = Lexer(source)
             val (token, lexerr) = lex(lexer)
@@ -86,15 +85,16 @@ class LexerTest private constructor() {
             assertEquals(lexerr.source, "")
             assertEquals(lexerr.column, 1)
 
+            val prec = opPrecedence(source)
             assertEquals(
-                token,
                 Token(
                     source,
                     tokenTypeOfSingle(source),
                     0,
                     prec,
                     source != "^" && prec != Precedence.NONE
-                )
+                ),
+                token
             )
         }
     }
@@ -194,7 +194,7 @@ class LexerTest private constructor() {
         assertEquals(lexerr.source, "10")
         assertEquals(lexerr.column, 1)
 
-        assertEquals(token, Token("-", TokenType.MINUS, 0, Precedence.UNARY, true))
+        assertEquals(Token("-", TokenType.MINUS, 0, Precedence.UNARY, true), token)
     }
 
     @Test
@@ -213,6 +213,27 @@ class LexerTest private constructor() {
         assertEquals(lexerrr.column, 3)
 
         assertEquals(tokenn, Token("-", TokenType.MINUS, 2, Precedence.UNARY, true))
+    }
+
+    @Test
+    fun givenASubtractionExprReturnsTheAppropriateResult() {
+        val (token, lexerr) = lex(Lexer("1-1"))
+
+        assertEquals(lexerr.source, "-1")
+        assertEquals(lexerr.column, 1)
+        assertEquals(Token("1", TokenType.NUM, 0), token)
+
+        val (tokenn, lexerrr) = lex(lexerr)
+
+        assertEquals(lexerrr.source, "1")
+        assertEquals(lexerrr.column, 2)
+        assertEquals(Token("-", TokenType.MINUS, 1, Precedence.TERM, true), tokenn)
+
+        val (tokennn, lexerrrr) = lex(lexerrr)
+
+        assertEquals(lexerrrr.source, "")
+        assertEquals(lexerrrr.column, 3)
+        assertEquals(Token("1", TokenType.NUM, 2), tokennn)
     }
 }
 

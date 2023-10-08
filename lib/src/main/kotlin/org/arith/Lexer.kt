@@ -84,11 +84,6 @@ fun lex(lexer: Lexer): Pair<Token, Lexer> {
 
     val head = lexerCopy.source.first()
 
-    val isUnaryMinus =
-            (lexerCopy.source.length >= 2) &&
-                    ((lexer.lastTokenWasOp && head == '-' && lexerCopy.source[1].isDigit()) ||
-                            (head == '-' && lexerCopy.source[1].isDigit()))
-
     val (lexeme, tokenType) = parse(lexerCopy)
 
     if (tokenType == TokenType.NUM && lexeme.count { it == '.' } > 1) {
@@ -126,6 +121,13 @@ fun lex(lexer: Lexer): Pair<Token, Lexer> {
 
     return result
 }
+
+private fun isUnaryOp(lastTokenWasOp: Boolean, column: Int, head: Char, source: String): Boolean =
+    ((lastTokenWasOp && head == '-') ||
+            (head == '-' && source.length >= 2 && (source[1] == '(' ||
+                    column == 0 && source[1].isDigit()
+                    ))
+            )
 
 private fun isLeftAssociative(tokenType: TokenType, lexeme: String) =
     isOp(tokenType) && lexeme != "^"
