@@ -128,125 +128,109 @@ fun lex(lexer: Lexer): Pair<Token, Lexer> {
 }
 
 private fun isLeftAssociative(tokenType: TokenType, lexeme: String) =
-        isOp(tokenType) && lexeme != "^"
+    isOp(tokenType) && lexeme != "^"
 
 private fun parse(lexer: Lexer): Pair<String, TokenType> =
-        when (lexer.source.first().lowercaseChar()) {
-            '!' -> "!" to TokenType.BANG
-            '*' -> "*" to TokenType.STAR
-            '^' -> "^" to TokenType.POW
-            '+' -> "+" to TokenType.PLUS
-            '-' -> "-" to TokenType.MINUS
-            '%' -> "%" to TokenType.MOD
-            '/' -> "/" to TokenType.SLASH
-            '(' -> "(" to TokenType.LEFT_PAREN
-            ',' -> "," to TokenType.COMMA
-            ')' -> ")" to TokenType.RIGHT_PAREN
-            in 'a'..'z' -> parseFunction(lexer) ?: ("Unknown function name" to TokenType.ERROR)
-            else ->
-                    if (lexer.source.first().isDigit()) {
-                        lexer.source.takeWhile { it.isDigit() || it == '.' } to TokenType.NUM
-                    } else {
-                        TOKEN_ERROR to TokenType.ERROR
-                    }
-        }
+    when (lexer.source.first().lowercaseChar()) {
+        '!' -> "!" to TokenType.BANG
+        '*' -> "*" to TokenType.STAR
+        '^' -> "^" to TokenType.POW
+        '+' -> "+" to TokenType.PLUS
+        '-' -> "-" to TokenType.MINUS
+        '%' -> "%" to TokenType.MOD
+        '/' -> "/" to TokenType.SLASH
+        '(' -> "(" to TokenType.LEFT_PAREN
+        ',' -> "," to TokenType.COMMA
+        ')' -> ")" to TokenType.RIGHT_PAREN
+        'a', 'c', 'e', 'l', 'r', 's', 't', 'd', 'f', 'n' -> parseFunction(lexer)
+            ?: ("Unknown function name" to TokenType.ERROR)
+
+        else ->
+            if (lexer.source.first().isDigit()) {
+                lexer.source.takeWhile { it.isDigit() || it == '.' } to TokenType.NUM
+            } else {
+                TOKEN_ERROR to TokenType.ERROR
+            }
+    }
 
 private fun parseFunction(lexer: Lexer) =
-        when (lexer.source.first()) {
-            'a' ->
-                    listOf("abs", "acos", "acot", "acsc", "asec", "asin", "atan")
-                            .firstOrNull { lexer.source.take(it.length) == it }
-                            ?.let { it to TokenType.FUNCTION }
-            'c' ->
-                    if (lexer.source.last() == 'h') {
-                        "cosh" to TokenType.FUNCTION
-                    } else {
-                        listOf("ceil", "cos", "cosh", "cot", "csc")
-                                .firstOrNull { lexer.source.take(it.length) == it }
-                                ?.let { it to TokenType.FUNCTION }
-                    }
-            'e' ->
-                    (if (lexer.source.last() == '2') {
-                        "exp2"
-                    } else {
-                        "exp"
-                    }) to TokenType.FUNCTION
-            'l' ->
-                    if (lexer.source.last() == '0') {
-                        "log10" to TokenType.FUNCTION
-                    } else {
-                        listOf(
-                                        "ln",
-                                        "log",
-                                        "log10",
-                                )
-                                .firstOrNull { lexer.source.take(it.length) == it }
-                                ?.let { it to TokenType.FUNCTION }
-                    }
-            'r' ->
-                    listOf("rad", "round").firstOrNull { lexer.source.take(it.length) == it }?.let {
-                        it to TokenType.FUNCTION
-                    }
-            's' ->
-                    if (lexer.source.last() == 'h') {
-                        "sinh" to TokenType.FUNCTION
-                    } else {
-                        listOf("sec", "sin", "sqrt")
-                                .firstOrNull { lexer.source.take(it.length) == it }
-                                ?.let { it to TokenType.FUNCTION }
-                    }
-            't' ->
-                    (if (lexer.source.last() == 'h') {
-                        "tanh"
-                    } else {
-                        "tan"
-                    }) to TokenType.FUNCTION
-            else -> {
-                listOf("deg", "floor", "nroot")
-                        .firstOrNull { lexer.source.take(it.length) == it }
-                        ?.let { it to TokenType.FUNCTION }
-            }
-        }
+    when (lexer.source.lowercase().first()) {
+        'a' ->
+            findFunctionName(listOf("abs", "acos", "acot", "acsc", "asec", "asin", "atan"), lexer.source)
 
+        'c' ->
+            findFunctionName(listOf("ceil", "cosh", "cos", "cot", "csc"), lexer.source)
+
+        'e' ->
+            findFunctionName(listOf("exp2", "exp"), lexer.source)
+
+        'l' ->
+            findFunctionName(
+                listOf(
+                    "ln",
+                    "log10",
+                    "log"
+                ), lexer.source
+            )
+
+        'r' ->
+            findFunctionName(listOf("rad", "round"), lexer.source)
+
+        's' ->
+            findFunctionName(listOf("sec", "sinh", "sin", "sqrt"), lexer.source)
+
+        't' ->
+            findFunctionName(listOf("tanh", "tan"), lexer.source)
+
+        else -> {
+            findFunctionName(listOf("deg", "floor", "nroot"), lexer.source)
         }
+    }
+
+private fun findFunctionName(names: List<String>, source: String): Pair<String, TokenType>? =
+    names.firstOrNull {
+        source.take(it.length) == it
+    }?.let { it to TokenType.FUNCTION }
+
 
 private fun reciprocal(n: Double): Double = 1.0 / n
 
 private fun precedenceOf(lexeme: String): Precedence =
-        when (lexeme) {
-            "+", "-" -> Precedence.TERM
-            "*", "/", "%" -> Precedence.FACTOR
-            "!", "^" -> Precedence.FACTOR
-            else -> Precedence.NONE
-        }
+    when (lexeme) {
+        "+", "-" -> Precedence.TERM
+        "*", "/", "%" -> Precedence.FACTOR
+        "!", "^" -> Precedence.FACTOR
+        else -> Precedence.NONE
+    }
 
 private fun skipWhiteSpace(lexer: Lexer): Lexer {
     val result =
-            when (lexer.source.first()) {
-                ' ', '\t' -> {
-                    lexer.source.dropWhile { it == ' ' || it == '\t' }.let {
-                        lexer.copy(
-                                source = it,
-                                column =
-                                        lexer.column +
-                                                (lexer.source.length - it.length).absoluteValue
-                        )
-                    }
+        when (lexer.source.first()) {
+            ' ', '\t' -> {
+                lexer.source.dropWhile { it == ' ' || it == '\t' }.let {
+                    lexer.copy(
+                        source = it,
+                        column =
+                        lexer.column +
+                                (lexer.source.length - it.length).absoluteValue
+                    )
                 }
-                else -> lexer
             }
 
+            else -> lexer
+        }
     return result
 }
 
-private fun isOp(tokenType: TokenType): Boolean =
-        when (tokenType) {
-            TokenType.BANG,
-            TokenType.STAR,
-            TokenType.POW,
-            TokenType.PLUS,
-            TokenType.MINUS,
-            TokenType.SLASH,
-            TokenType.MOD -> true
-            else -> false
-        }
+fun isOp(tokenType: TokenType): Boolean =
+    when (tokenType) {
+        TokenType.BANG,
+        TokenType.STAR,
+        TokenType.POW,
+        TokenType.PLUS,
+        TokenType.MINUS,
+        TokenType.SLASH,
+        TokenType.MOD -> true
+
+        else -> false
+    }
