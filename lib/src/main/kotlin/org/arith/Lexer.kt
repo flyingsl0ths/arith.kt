@@ -23,6 +23,16 @@ data class Token(
 )
 
 data class Lexer(val source: String, val column: Int = 0, val lastTokenWasOp: Boolean = false)
+
+@JvmInline
+value class Arity(val data: Int) {
+    init {
+        if (data < 0) {
+            throw IllegalArgumentException("Arity must be at least 1 and unsigned.")
+        }
+    }
+}
+
 val Functions: Map<String, Pair<Calculation, Arity>> =
     mapOf(
         "abs" to (atLeastNArgs("abs") { args: List<Double> -> abs(args.first()) } to Arity(1)),
