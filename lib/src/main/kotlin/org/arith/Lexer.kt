@@ -1,167 +1,211 @@
 package org.arith
 
-import org.arith.utils.Either
-import org.arith.utils.atLeastNArgs
+import org.arith.utils.Binary
+import org.arith.utils.Func
+import org.arith.utils.Relation
+import org.arith.utils.Result
 import kotlin.math.*
 
-typealias Calculation = (List<Double>) -> Either<String, Double>
+private const val TOKEN_ERROR: String = "Unknown token"
 
 enum class Precedence {
-    NONE,
-    TERM, // + -
-    FACTOR, // * / %
-    UNARY, // ! - ^
+    None,
+    Term, // + -
+    Factor, // * / % ^
+    Unary, // ! -
+}
+
+enum class TokenType {
+    Star,
+    Hat,
+    Plus,
+    Minus,
+    Slash,
+    Modulo,
+    LeftParen,
+    RightParen,
+    Comma,
+    Number,
+    Function,
+    End,
+    Error
 }
 
 data class Token(
     val lexeme: String?,
     val type: TokenType,
-    val column: Int,
-    val precedence: Precedence = Precedence.NONE,
+    val column: UInt,
+    val precedence: Precedence = Precedence.None,
     val leftAssociative: Boolean = false,
-    val function: Pair<Calculation, Arity>? = null
+    val function: Relation? = null
 )
 
-data class Lexer(val source: String, val column: Int = 0, val lastTokenWasOp: Boolean = false)
+data class Lexer(
+    val source: String,
+    val column: UInt = 0u,
+    val lastTokenWasOp: Boolean = false,
+    val reachedEnd: Boolean = false,
+)
 
-@JvmInline
-value class Arity(val data: Int) {
-    init {
-        if (data < 0) {
-            throw IllegalArgumentException("Arity must be at least 1 and unsigned.")
-        }
+val mul = Binary<Result> { left, right -> left * right }
+val power = Binary<Result> { left, right -> left.pow(right) }
+val plus = Binary<Result> { left, right -> left + right }
+val sub = Binary<Result> { left, right -> left - right }
+val div = Binary<Result> { left, right -> left / right }
+val modulo = Binary<Result> { left, right -> left % right }
+
+val Functions: Map<String, Func> =
+    run {
+        val reciprocal = { n: Double -> 1.0 / n }
+
+        mapOf(
+            "!" to Func({ args: List<Double> ->
+                fun factorial(n: Result): Double = if (n.toInt() == 1) 1.0 else (n * factorial(n - 1))
+                factorial(args.first())
+            } to 1u),
+            "-" to Func({ args: List<Double> ->
+                -args.first()
+            } to 1u),
+            "abs" to Func({ args: List<Double> -> abs(args.first()) } to 1u),
+            "acos" to Func({ args: List<Double> -> acos(args.first()) } to 1u),
+            "acot" to Func({ args: List<Double> -> atan(reciprocal(args.first())) } to 1u),
+            "acsc" to Func({ args: List<Double> -> asin(reciprocal(args.first())) } to 1u),
+            "asec" to Func({ args: List<Double> -> acos(reciprocal(args.first())) } to 1u),
+            "asin" to Func({ args: List<Double> -> asin(args.first()) } to 1u),
+            "atan" to Func({ args: List<Double> -> atan(args.first()) } to 1u),
+            "ceil" to Func({ args: List<Double> -> ceil(args.first()) } to 1u),
+            "cos" to Func({ args: List<Double> -> cos(args.first()) } to 1u),
+            "cosh" to Func({ args: List<Double> -> cosh(args.first()) } to 1u),
+            "cot" to Func({ args: List<Double> -> reciprocal(tan(args.first())) } to 1u),
+            "csc" to Func({ args: List<Double> -> reciprocal(sin(args.first())) } to 1u),
+            "exp" to Func({ args: List<Double> -> exp(args.first()) } to 1u),
+            "exp2" to Func({ args: List<Double> -> 2.0.pow(args.first()) } to 1u),
+            "ln" to Func({ args: List<Double> -> ln(args.first()) } to 1u),
+            "log" to Func({ args: List<Double> -> ln(args.first()) / ln(args[1]) } to 2u),
+            "log10" to Func({ args: List<Double> -> log10(args.first()) } to 1u),
+            "rad" to Func({ args: List<Double> -> Math.toRadians(args.first()) } to 1u),
+            "round" to Func({ args: List<Double> -> round(args.first()) } to 1u),
+            "sec" to Func({ args: List<Double> -> reciprocal(cos(args.first())) } to 1u),
+            "sin" to Func({ args: List<Double> -> sin(args.first()) } to 1u),
+            "sinh" to Func({ args: List<Double> -> sinh(args.first()) } to 1u),
+            "sqrt" to Func({ args: List<Double> -> sqrt(args.first()) } to 1u),
+            "tan" to Func({ args: List<Double> -> tan(args.first()) } to 1u),
+            "tanh" to Func({ args: List<Double> -> tanh(args.first()) } to 1u),
+            "deg" to Func({ args: List<Double> -> Math.toDegrees(args.first()) } to 1u),
+            "floor" to Func({ args: List<Double> -> floor(args.first()) } to 1u),
+            "nroot" to
+                    Func({ args: List<Double> ->
+                        args.first().pow(1.0 / args[1])
+                    } to 2u)
+        )
     }
-}
 
-val Functions: Map<String, Pair<Calculation, Arity>> =
-    mapOf(
-        "abs" to (atLeastNArgs("abs") { args: List<Double> -> abs(args.first()) } to Arity(1)),
-        "acos" to (atLeastNArgs("acos") { args: List<Double> -> acos(args.first()) } to Arity(1)),
-        "acot" to (atLeastNArgs("acot") { args: List<Double> -> atan(reciprocal(args.first())) } to Arity(1)),
-        "acsc" to (atLeastNArgs("acsc") { args: List<Double> -> asin(reciprocal(args.first())) } to Arity(1)),
-        "asec" to (atLeastNArgs("asec") { args: List<Double> -> acos(reciprocal(args.first())) } to Arity(1)),
-        "asin" to (atLeastNArgs("asin") { args: List<Double> -> asin(args.first()) } to Arity(1)),
-        "atan" to (atLeastNArgs("atan") { args: List<Double> -> atan(args.first()) } to Arity(1)),
-        "ceil" to (atLeastNArgs("ceil") { args: List<Double> -> ceil(args.first()) } to Arity(1)),
-        "cos" to (atLeastNArgs("cost") { args: List<Double> -> cos(args.first()) } to Arity(1)),
-        "cosh" to (atLeastNArgs("cosh") { args: List<Double> -> cosh(args.first()) } to Arity(1)),
-        "cot" to (atLeastNArgs("cot") { args: List<Double> -> reciprocal(tan(args.first())) } to Arity(1)),
-        "csc" to (atLeastNArgs("csc") { args: List<Double> -> reciprocal(sin(args.first())) } to Arity(1)),
-        "exp" to (atLeastNArgs("exp") { args: List<Double> -> exp(args.first()) } to Arity(1)),
-        "exp2" to (atLeastNArgs("exp2") { args: List<Double> -> 2.0.pow(args.first()) } to Arity(1)),
-        "ln" to (atLeastNArgs("ln") { args: List<Double> -> ln(args.first()) } to Arity(1)),
-        "log" to (atLeastNArgs("log", n = 2) { args: List<Double> -> ln(args.first()) / ln(args[1]) } to Arity(2)),
-        "log10" to (atLeastNArgs("log10") { args: List<Double> -> log10(args.first()) } to Arity(1)),
-        "rad" to (atLeastNArgs("rad") { args: List<Double> -> Math.toRadians(args.first()) } to Arity(1)),
-        "round" to (atLeastNArgs("round") { args: List<Double> -> round(args.first()) } to Arity(1)),
-        "sec" to (atLeastNArgs("sec") { args: List<Double> -> reciprocal(cos(args.first())) } to Arity(1)),
-        "sin" to (atLeastNArgs("sin") { args: List<Double> -> sin(args.first()) } to Arity(1)),
-        "sinh" to (atLeastNArgs("sinh") { args: List<Double> -> sinh(args.first()) } to Arity(1)),
-        "sqrt" to (atLeastNArgs("sqrt") { args: List<Double> -> sqrt(args.first()) } to Arity(1)),
-        "tan" to (atLeastNArgs("tan") { args: List<Double> -> tan(args.first()) } to Arity(1)),
-        "tanh" to (atLeastNArgs("tanh") { args: List<Double> -> tanh(args.first()) } to Arity(1)),
-        "deg" to (atLeastNArgs("deg") { args: List<Double> -> Math.toDegrees(args.first()) } to Arity(1)),
-        "floor" to (atLeastNArgs("floor") { args: List<Double> -> floor(args.first()) } to Arity(1)),
-        "nroot" to
-                (atLeastNArgs("nroot", n = 2) { args: List<Double> ->
-                    args.first().pow(1.0 / args[1])
-                } to Arity(2))
-    )
-
-enum class TokenType {
-    BANG,
-    STAR,
-    POW,
-    PLUS,
-    MINUS,
-    SLASH,
-    MOD,
-    LEFT_PAREN,
-    RIGHT_PAREN,
-    COMMA,
-    NUM,
-    FUNCTION,
-    EOF,
-    ERROR
-}
-
-private const val TOKEN_ERROR: String = "Unknown token"
+fun wasEmpty(lexer: Lexer): Boolean = !lexer.reachedEnd && lexer.column == 0u && lexer.source.isEmpty()
 
 fun lex(lexer: Lexer): Pair<Token, Lexer> {
-    if (lexer.source.isEmpty()) {
-        return Token(null, TokenType.EOF, lexer.column, Precedence.NONE) to lexer
+    if (wasEmpty(lexer)) {
+        return Token("0", TokenType.Number, 0u) to lexer
+    } else if (lexer.source.isEmpty()) {
+        return Token(null, TokenType.End, lexer.column, Precedence.None) to lexer.copy(reachedEnd = true)
     }
 
     val lexerCopy = skipWhiteSpace(lexer.copy())
 
-    val head = lexerCopy.source.first()
+    val isUnaryMinus = isUnaryMinus(lexerCopy)
 
-    val (lexeme, tokenType) = parse(lexerCopy)
+    val (lexeme, tokenType) = parse(lexerCopy, isUnaryMinus)
 
-    if (tokenType == TokenType.NUM && lexeme.count { it == '.' } > 1) {
+    if (tokenType == TokenType.Number && lexeme.count { it == '.' } > 1) {
         return Token(
             "Syntax error: floating point number cannot contain more than one '.'",
-            TokenType.ERROR,
+            TokenType.Error,
             lexer.column,
-            Precedence.NONE
+            Precedence.None
         ) to lexerCopy
-    } else if (tokenType == TokenType.ERROR) {
-        return Token(lexeme, TokenType.ERROR, lexer.column, Precedence.NONE) to lexerCopy
+    } else if (tokenType == TokenType.Error) {
+        return Token(lexeme, TokenType.Error, lexer.column, Precedence.None) to lexerCopy
     }
+
+    val func =
+        when (tokenType) {
+            TokenType.Function -> Functions[lexeme]
+            else -> if (isOp(lexeme, tokenType, isUnaryMinus)) fromOp(tokenType) else null
+        }
 
     return Token(
         lexeme,
         tokenType,
         lexerCopy.column,
-        if (isUnaryOp(
-                lexerCopy.lastTokenWasOp,
-                lexerCopy.column,
-                head,
-                lexerCopy.source
-            )
-        ) Precedence.UNARY else precedenceOf(lexeme),
-        isLeftAssociative(tokenType, lexeme),
-        if (tokenType == TokenType.FUNCTION) Functions[lexeme] else null
+        precedenceOf(lexeme, isUnaryMinus),
+        isLeftAssociative(lexeme, tokenType, isUnaryMinus),
+        func
     ) to
             lexerCopy.copy(
                 source = lexerCopy.source.drop(lexeme.length),
-                column = lexerCopy.column + lexeme.length,
-                lastTokenWasOp = isOp(tokenType)
+                column = lexerCopy.column + lexeme.length.toUInt(),
+                lastTokenWasOp = isOp(lexeme, tokenType, isUnaryMinus)
             )
 }
 
-private fun isUnaryOp(lastTokenWasOp: Boolean, column: Int, head: Char, source: String): Boolean =
-    ((lastTokenWasOp && head == '-') ||
+private fun isUnaryMinus(lexer: Lexer): Boolean {
+    val (source, column, lastTokenWasOp) = lexer
+    val head = source.first()
+
+    return (lastTokenWasOp && head == '-') ||
             (head == '-' && source.length >= 2 && (source[1] == '(' ||
-                    column == 0 && source[1].isDigit()
+                    column == 0u && (source[1].isDigit() || source[1] == '-')
                     ))
-            )
+}
 
-private fun isLeftAssociative(tokenType: TokenType, lexeme: String) =
-    isOp(tokenType) && lexeme != "^"
+private fun fromOp(tokenType: TokenType): Relation? =
+    when (tokenType) {
+        TokenType.Star -> mul
+        TokenType.Hat -> power
+        TokenType.Plus -> plus
+        TokenType.Minus -> sub
+        TokenType.Slash -> div
+        TokenType.Modulo -> modulo
+        else -> null
+    }
 
-private fun parse(lexer: Lexer): Pair<String, TokenType> =
-    when (lexer.source.first().lowercaseChar()) {
-        '!' -> "!" to TokenType.BANG
-        '*' -> "*" to TokenType.STAR
-        '^' -> "^" to TokenType.POW
-        '+' -> "+" to TokenType.PLUS
-        '-' -> "-" to TokenType.MINUS
-        '%' -> "%" to TokenType.MOD
-        '/' -> "/" to TokenType.SLASH
-        '(' -> "(" to TokenType.LEFT_PAREN
-        ',' -> "," to TokenType.COMMA
-        ')' -> ")" to TokenType.RIGHT_PAREN
-        'a', 'c', 'e', 'l', 'r', 's', 't', 'd', 'f', 'n' -> parseFunction(lexer)
-            ?: ("Unknown function name" to TokenType.ERROR)
+private fun isLeftAssociative(lexeme: String, tokenType: TokenType, isUnaryMinus: Boolean) =
+    isOp(lexeme, tokenType, isUnaryMinus) && lexeme != "^" && lexeme != "("
+
+private fun parse(lexer: Lexer, isUnaryMinus: Boolean): Pair<String, TokenType> =
+    when (val head = lexer.source.first().lowercaseChar()) {
+        '!' -> "!" to TokenType.Function
+        '*' -> "*" to TokenType.Star
+        '^' -> "^" to TokenType.Hat
+        '+' -> "+" to TokenType.Plus
+        '-' -> "-" to (if (isUnaryMinus) TokenType.Function else TokenType.Minus)
+        '%' -> "%" to TokenType.Modulo
+        '/' -> "/" to TokenType.Slash
+        '(' -> "(" to TokenType.LeftParen
+        ',' -> "," to TokenType.Comma
+        ')' -> ")" to TokenType.RightParen
+        'a', 'd', 'c', 'e', 'f', 'l', 'n', 'p', 'r', 's', 't' -> {
+            if (head == 'e' && (lexer.source.length == 1 || isNotExpFunctions(lexer.source))) {
+                Math.E.toString() to TokenType.Number
+            } else if (lexer.source.length >= 2 && lexer.source.take("pi".length) == "pi") {
+                Math.PI.toString() to TokenType.Number
+            } else
+                parseFunction(lexer)
+                    ?: ("Unknown function name" to TokenType.Error)
+        }
 
         else ->
             if (lexer.source.first().isDigit()) {
-                lexer.source.takeWhile { it.isDigit() || it == '.' } to TokenType.NUM
+                lexer.source.takeWhile { it.isDigit() || it == '.' } to TokenType.Number
             } else {
-                TOKEN_ERROR to TokenType.ERROR
+                TOKEN_ERROR to TokenType.Error
             }
     }
+
+private inline fun isNotExpFunctions(source: String): Boolean {
+    val length = source.length
+
+    return (length >= "exp".length && source.take("exp".length) != "exp") || (length >= "exp2".length && source.take("exp2".length) != "exp2")
+}
 
 private fun parseFunction(lexer: Lexer) =
     when (lexer.source.lowercase().first()) {
@@ -197,20 +241,21 @@ private fun parseFunction(lexer: Lexer) =
         }
     }
 
-private fun findFunctionName(names: List<String>, source: String): Pair<String, TokenType>? =
+private inline fun findFunctionName(names: List<String>, source: String): Pair<String, TokenType>? =
     names.firstOrNull {
         source.take(it.length) == it
-    }?.let { it to TokenType.FUNCTION }
+    }?.let { it to TokenType.Function }
 
-
-private fun reciprocal(n: Double): Double = 1.0 / n
-
-private fun precedenceOf(lexeme: String): Precedence =
+private fun precedenceOf(lexeme: String, isUnary: Boolean): Precedence =
     when (lexeme) {
-        "+", "-" -> Precedence.TERM
-        "*", "/", "%" -> Precedence.FACTOR
-        "!", "^" -> Precedence.FACTOR
-        else -> Precedence.NONE
+        "+" -> Precedence.Term
+        "*", "/", "%", "^" -> Precedence.Factor
+        "!" -> Precedence.Unary
+        else ->
+            if (lexeme == "-" && isUnary)
+                Precedence.Unary
+            else if (lexeme == "-") Precedence.Term
+            else Precedence.None
     }
 
 private fun skipWhiteSpace(lexer: Lexer): Lexer {
@@ -222,7 +267,7 @@ private fun skipWhiteSpace(lexer: Lexer): Lexer {
                         source = it,
                         column =
                         lexer.column +
-                                (lexer.source.length - it.length).absoluteValue
+                                (lexer.source.length - it.length).absoluteValue.toUInt()
                     )
                 }
             }
@@ -232,15 +277,14 @@ private fun skipWhiteSpace(lexer: Lexer): Lexer {
     return result
 }
 
-fun isOp(tokenType: TokenType): Boolean =
+fun isOp(lexeme: String, tokenType: TokenType, isUnaryMinus: Boolean): Boolean =
     when (tokenType) {
-        TokenType.BANG,
-        TokenType.STAR,
-        TokenType.POW,
-        TokenType.PLUS,
-        TokenType.MINUS,
-        TokenType.SLASH,
-        TokenType.MOD -> true
+        TokenType.Star,
+        TokenType.Hat,
+        TokenType.Plus,
+        TokenType.Slash,
+        TokenType.Modulo,
+        TokenType.LeftParen -> true
 
-        else -> false
+        else -> (isUnaryMinus && lexeme == "-") || (tokenType == TokenType.Minus) || (lexeme == "!")
     }

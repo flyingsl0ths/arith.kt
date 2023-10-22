@@ -1,11 +1,17 @@
 package org.arith.utils
 
-sealed class Relation {
-    data class Unary<T>(val op: (T) -> T) : Relation() {
-        operator fun invoke(right: T): T = op(right)
-    }
+typealias Result = Double
+typealias Calculation = (List<Result>) -> Result
+typealias Arity = UInt
 
-    data class Binary<T>(val op: (T, T) -> T) : Relation() {
-        operator fun invoke(left: T, right: T): T = op(left, right)
-    }
+sealed interface Relation
+
+data class Unary<T>(val op: (T) -> T) : Relation {
+    operator fun invoke(right: T) = op(right)
 }
+
+data class Binary<T>(val op: (T, T) -> T) : Relation {
+    operator fun invoke(left: T, right: T) = op(left, right)
+}
+
+data class Func(val data: Pair<Calculation, Arity>) : Relation

@@ -1,253 +1,251 @@
 package org.arith
 
 import org.arith.utils.*
-import java.util.*
-import kotlin.math.pow
+import kotlin.math.roundToInt
+
+typealias Error = Pair<UInt, String>
+typealias ErrorMessage = String
 
 private data class Parser(
     val output: MutableList<Token> = mutableListOf(),
-    val ops: MutableList<Token> = mutableListOf(),
-    var result: Either<Pair<String, Int>, MutableList<Token>> = right(output)
+    val operators: MutableList<Token> = mutableListOf(),
+    var result: Either<Error, MutableList<Token>> = right(output)
 )
 
-private fun hadError(parser: Parser): Boolean = parser.result is Either.Left<Pair<String, Int>>
+private fun Parser.hadError(): Boolean = result is Left<Error>
 
-fun runLexer(lexer: Lexer): Either<String, Double> =
-    organize(lexer).fold({
+fun calculate(source: String): Either<ErrorMessage, Result> =
+    organize(Lexer(source)).fold({
         left("Line(1,${it.first}): ${it.second}")
     }, ::onRight)
 
-private fun onRight(stack: MutableList<Token>): Either<String, Double> {
-    val args = mutableListOf<Double>()
-    val output = mutableListOf<Double>()
+private fun onRight(stack: MutableList<Token>): Either<ErrorMessage, Result> {
+    val args = mutableListOf<Result>()
+    val output = mutableListOf<Result>()
 
     stack.forEach {
         when (it.type) {
-            TokenType.NUM -> output.add(it.lexeme!!.toDouble())
+            TokenType.Number -> output.add(it.lexeme!!.toDouble())
 
-            TokenType.BANG,
-            TokenType.STAR,
-            TokenType.POW,
-            TokenType.PLUS,
-            TokenType.MINUS,
-            TokenType.SLASH,
-            TokenType.MOD -> {
-                val result = onOperator(output, it)
-                if (result is Either.Left<String>) {
-                    return@onRight result
+            TokenType.Star,
+            TokenType.Hat,
+            TokenType.Plus,
+            TokenType.Minus,
+            TokenType.Slash,
+            TokenType.Modulo -> {
+                onOperator(output, it).let { result ->
+                    if (result is Left<ErrorMessage>) {
+                        return@onRight result
+                    }
                 }
             }
 
-            TokenType.FUNCTION -> {
-                val result = onFunction(it, args, output)
-                if (result is Either.Left<String>) {
-                    return@onRight result
+            TokenType.Function -> {
+                onFunction(it, args, output).let { result ->
+                    if (result is Left<ErrorMessage>) {
+                        return@onRight result
+                    }
                 }
             }
 
-
-            else -> return@onRight left("Line(1,${it.column}): '${it.lexeme}'")
+            else -> return@onRight left("Line(1,${it.column + 1u}): '${it.lexeme}'")
         }
     }
 
     return if (output.size == 1) right(output.removeLast()) else
-        left("Line(1,${stack.last().column}): Too many operators, too few operands")
+        left("Line(1,${stack.last().column + 1u}): Too many operators, too few operands")
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun onOperator(output: MutableList<Double>, currentToken: Token): Either<String, Unit> {
-    val errorMessage = "Line(1,${currentToken.column}): Too many operators, too few operands"
+private fun onOperator(output: MutableList<Result>, currentToken: Token): Either<ErrorMessage, Unit> {
+    val errorMessage = "Line(1,${currentToken.column + 1u}): Too many operators, too few operands"
 
-    when (val op = fromOp(currentToken.type, currentToken.precedence).get()) {
-        is Relation.Unary<*> -> {
+    when (val op = currentToken.function) {
+        is Unary<*> -> {
             val right = output.removeLastOrNull() ?: return left(errorMessage)
-            output.add((op as Relation.Unary<Double>)(right))
+            output.add((op as Unary<Double>)(right))
         }
 
-        is Relation.Binary<*> -> {
+        is Binary<*> -> {
             val right = output.removeLastOrNull() ?: return left(errorMessage)
             val left = output.removeLastOrNull() ?: return left(errorMessage)
 
-            output.add((op as Relation.Binary<Double>)(left, right))
+            if (currentToken.type == TokenType.Slash && right.roundToInt() == 0) {
+                return left("Line(1,${currentToken.column + 1u}): Division by zero!!")
+            }
+
+            output.add((op as Binary<Result>)(left, right))
         }
+
+        is Func, null -> left("Line(1,${currentToken.column + 1u}): Syntax error unexpected '${currentToken.lexeme}'")
     }
 
     return right(Unit)
 }
 
-private fun fromOp(tokenType: TokenType, precedence: Precedence): Optional<Relation> =
-    Optional.ofNullable(when (tokenType) {
-        TokenType.BANG -> {
-            fun factorial(n: Double): Double = if (n.toInt() == 1) 1.0 else (n * factorial(n - 1))
-            Relation.Unary(::factorial)
-        }
-
-        TokenType.STAR -> Relation.Binary<Double> { left, right -> right * left }
-        TokenType.POW -> Relation.Binary<Double> { left, right -> right.pow(left) }
-        TokenType.PLUS -> Relation.Binary<Double> { left, right -> right + left }
-        TokenType.MINUS ->
-            if (precedence == Precedence.UNARY) Relation.Unary<Double> { right -> -right }
-            else Relation.Binary<Double> { left, right -> right - left }
-
-        TokenType.SLASH -> Relation.Binary<Double> { left, right -> right / left }
-        TokenType.MOD -> Relation.Binary<Double> { left, right -> right % left }
-        else -> null
-    })
-
 private fun onFunction(
     entry: Token,
-    args: MutableList<Double>,
-    output: MutableList<Double>
-): Either<String, Unit> {
-    val (func, arity) = entry.function!!
+    args: MutableList<Result>,
+    output: MutableList<Result>
+): Either<ErrorMessage, Unit> {
+    val (func, arity) = (entry.function as Func).data
 
-    if (output.size < arity.data) {
-        return left("Line(1,${entry.column}): Too few arguments to function, '${entry.lexeme}'")
+    if (output.size.toUInt() < arity) {
+        return left("Line(1,${entry.column + 1u}): Too few arguments to function, '${entry.lexeme}'")
     }
 
-    repeat(arity.data) {
+    repeat(arity.toInt()) {
         val top = output.removeLastOrNull()
-        if (top != null) {
-            args.add(top)
-        } else {
-            return@onFunction left("Line(1,${entry.column}): Too few arguments to function, '${entry.lexeme}'")
-        }
+            ?: return@onFunction left("Line(1,${entry.column + 1u}): Too few arguments to function, '${entry.lexeme}'")
+
+        args.add(top)
     }
 
-    return when (val result = func(args)) {
-        is Either.Left<String> -> {
-            val error = result.value
-            left("Line(1,${entry.column}): $error")
-        }
-
-        is Either.Right<Double> -> {
-            val calcResult = result.value
-            output.add(calcResult)
-            args.clear()
-            right(Unit)
-        }
-    }
+    val result = func(args)
+    output.add(result)
+    args.clear()
+    return right(Unit)
 }
 
-private fun organize(lexer: Lexer): Either<Pair<String, Int>, MutableList<Token>> {
+private fun organize(lexer: Lexer): Either<Error, MutableList<Token>> {
     var parser = Parser()
-    var lexer_ = lexer.copy()
+
+    var copy = lexer.copy()
 
     do {
-        val (token, lexer__) = lex(lexer_)
+        val (token, next) = lex(copy)
 
-        when (token.type) {
-            TokenType.NUM -> parser.output.add(token)
-
-            TokenType.FUNCTION -> parser.ops.add(token)
-
-            TokenType.BANG,
-            TokenType.STAR,
-            TokenType.POW,
-            TokenType.PLUS,
-            TokenType.MINUS,
-            TokenType.SLASH,
-            TokenType.MOD -> parser = onOp(parser, token)
-
-            TokenType.COMMA -> parser = onComma(parser)
-
-            TokenType.LEFT_PAREN -> parser.ops.add(token)
-
-
-            TokenType.RIGHT_PAREN -> when (val result = onRightParen(parser, token)) {
-                is Either.Left<Boolean> -> break
-                is Either.Right<Parser> -> parser = result.value
-            }
-
-            else -> break
-        }
-
-        if (hadError(parser)) {
+        if (token.type == TokenType.End) {
             break
         }
 
-        lexer_ = lexer__
+        parser = onTokenType(parser, token)
+
+        if (parser.hadError() || wasEmpty(next)) {
+            break
+        }
+
+        copy = next
     } while (true)
 
-    while (parser.ops.isNotEmpty()) {
-        val top = parser.ops.last()
+    while (parser.operators.isNotEmpty()) {
+        val top = parser.operators.last()
 
-        if (top.type == TokenType.LEFT_PAREN) {
-            parser.result = left("Mismatched parenthesis" to top.column)
+        if (top.type == TokenType.LeftParen) {
+            parser.result = left(top.column + 1u to "Mismatched parenthesis")
             break
         }
 
-        parser.output.add(parser.ops.removeLast())
+        parser.output.add(parser.operators.removeLast())
     }
 
     return parser.result
 }
 
+private fun onTokenType(parser: Parser, token: Token): Parser {
+    val copy = parser.copy()
+
+    return when (token.type) {
+        TokenType.Number -> copy.let {
+            it.output.add(token)
+            it
+        }
+
+        TokenType.Function -> copy.let {
+            it.operators.add(token)
+            it
+        }
+
+        TokenType.Star,
+        TokenType.Hat,
+        TokenType.Plus,
+        TokenType.Minus,
+        TokenType.Slash,
+        TokenType.Modulo -> onOp(parser, token)
+
+        TokenType.Comma -> onComma(parser)
+
+        TokenType.LeftParen -> copy.let {
+            it.operators.add(token)
+            it
+        }
+
+
+        TokenType.RightParen -> onRightParen(copy, token)
+
+        else -> copy
+    }
+
+}
+
 
 private fun onOp(parser: Parser, currentToken: Token): Parser {
-    val parser_ = parser.copy()
+    val copy = parser.copy()
 
     val removeFromOps = {
-        parser_.ops.isNotEmpty() &&
-                parser_.ops.let {
-                    val last = it.last()
-                    last.type != TokenType.LEFT_PAREN &&
-                            (last.precedence > currentToken.precedence ||
-                                    (last.precedence == currentToken.precedence &&
+        copy.operators.isNotEmpty() &&
+                copy.operators.let {
+                    val top = it.last()
+                    top.type != TokenType.LeftParen &&
+                            (top.precedence > currentToken.precedence ||
+                                    (top.precedence == currentToken.precedence &&
                                             currentToken.leftAssociative))
                 }
     }
 
     while (removeFromOps()) {
-        parser_.output.add(parser.ops.removeLast())
+        copy.output.add(copy.operators.removeLast())
     }
 
-    parser_.ops.add(currentToken)
-    return parser_
+    copy.operators.add(currentToken)
+    return copy
 }
 
 private fun onComma(parser: Parser): Parser {
-    val parser_ = parser.copy()
+    val copy = parser.copy()
 
-    while (parser_.ops.isNotEmpty() && parser.ops.last().type != TokenType.LEFT_PAREN) {
-        parser_.output.add(parser.ops.removeLast())
+    while (copy.operators.isNotEmpty() && copy.operators.last().type != TokenType.LeftParen) {
+        copy.output.add(copy.operators.removeLast())
     }
 
-    return parser_
+    return copy
 }
 
-private fun onRightParen(parser: Parser, token: Token): Either<Boolean, Parser> {
-    // 1 + 1 + (1)
-    val parser_ = parser.copy()
+private fun onRightParen(parser: Parser, token: Token): Parser {
+    val copy = parser.copy()
 
-    if (parser_.ops.isEmpty()) {
-        parser_.result = left("Mismatched parenthesis" to token.column)
-        left(true)
+    if (copy.operators.isEmpty()) {
+        copy.result = left(token.column + 1u to "Mismatched parenthesis")
+        return copy
     }
 
-    while (parser_.ops.last().type != TokenType.LEFT_PAREN) {
-        parser_.output.add(parser.ops.removeLast())
-
-        if (parser_.ops.isEmpty()) {
-            parser_.result = left("Mismatched parenthesis" to parser.ops.last().column)
+    while (copy.operators.isNotEmpty() && copy.operators.last().type != TokenType.LeftParen) {
+        if (copy.operators.isEmpty()) {
+            copy.result = left(parser.operators.last().column + 1u to "Mismatched parenthesis")
             break
         }
 
-        val top = parser_.ops.last()
-
-        if (top.type == TokenType.COMMA) {
-            parser_.result = left("Empty argument" to top.column)
-            break
-        }
-
-        if (top.type == TokenType.LEFT_PAREN) {
-            parser_.ops.removeLast()
-        }
-
-        if (parser_.ops.isNotEmpty() && parser.ops.last().type == TokenType.FUNCTION) {
-            parser_.output.add(parser.ops.removeLast())
-        }
+        copy.output.add(copy.operators.removeLast())
     }
 
-    return right(parser_)
+    if (copy.operators.isEmpty()) {
+        copy.result = left(token.column + 1u to "Mismatched parenthesis")
+        return copy
+    }
+
+    val top = copy.operators.last()
+
+    if (top.type == TokenType.Comma) {
+        copy.result = left(top.column + 1u to "Empty argument")
+    }
+
+    if (top.type == TokenType.LeftParen) {
+        copy.operators.removeLast()
+    }
+
+    if (copy.operators.isNotEmpty() && copy.operators.last().type == TokenType.Function) {
+        copy.output.add(copy.operators.removeLast())
+    }
+
+    return copy
 }
