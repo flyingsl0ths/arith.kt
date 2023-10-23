@@ -1,4 +1,4 @@
-# Arith.kt
+# Arith.kt (yes the name is based off the character)
 
 ![Build Status](https://github.com/flyingsl0ths/opengl-template/actions/workflows/ci.yaml/badge.svg)
 
