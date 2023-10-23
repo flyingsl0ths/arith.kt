@@ -112,6 +112,11 @@ private fun organize(lexer: Lexer): Either<Error, MutableList<Token>> {
 
     var copy = lexer.copy()
 
+    if (copy.source.isEmpty()) {
+        parser.output.add(Token("0", TokenType.Number, 0u))
+        return parser.result
+    }
+
     do {
         val (token, next) = lex(copy)
 

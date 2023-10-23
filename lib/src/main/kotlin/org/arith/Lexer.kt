@@ -103,10 +103,8 @@ val Functions: Map<String, Func> =
 fun wasEmpty(lexer: Lexer): Boolean = !lexer.reachedEnd && lexer.column == 0u && lexer.source.isEmpty()
 
 fun lex(lexer: Lexer): Pair<Token, Lexer> {
-    if (wasEmpty(lexer)) {
-        return Token("0", TokenType.Number, 0u) to lexer
-    } else if (lexer.source.isEmpty()) {
-        return Token(null, TokenType.End, lexer.column, Precedence.None) to lexer.copy(reachedEnd = true)
+    if (lexer.source.isEmpty()) {
+        return Token(null, TokenType.End, lexer.column, Precedence.None) to lexer
     }
 
     val lexerCopy = skipWhiteSpace(lexer.copy())
