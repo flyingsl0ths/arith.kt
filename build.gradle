@@ -1,0 +1,4 @@
+allprojects {
+    group = 'org.arith'
+    version = '1.0'
+}
