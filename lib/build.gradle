@@ -4,6 +4,9 @@ plugins {
     id 'java-library'
 }
 
+group = 'org.arith'
+version = '1.0'
+
 repositories {
     mavenCentral()
 }
