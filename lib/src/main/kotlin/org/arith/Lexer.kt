@@ -100,8 +100,6 @@ val Functions: Map<String, Func> =
         )
     }
 
-fun wasEmpty(lexer: Lexer): Boolean = !lexer.reachedEnd && lexer.column == 0u && lexer.source.isEmpty()
-
 fun lex(lexer: Lexer): Pair<Token, Lexer> {
     if (lexer.source.isEmpty()) {
         return Token(null, TokenType.End, lexer.column, Precedence.None) to lexer

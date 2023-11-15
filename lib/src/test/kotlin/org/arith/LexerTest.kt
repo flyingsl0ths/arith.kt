@@ -191,6 +191,13 @@ class LexerTest private constructor() {
         assertEquals(1u, next.column)
 
         assertEquals(Token("-", TokenType.Function, 0u, Precedence.Unary, true), token.copy(function = null))
+
+        val (secondToken, end) = lex(next)
+
+        assertEquals("", end.source)
+        assertEquals(3u, end.column)
+
+        assertEquals(Token("10", TokenType.Number, 1u), secondToken)
     }
 
     @Test

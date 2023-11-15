@@ -126,7 +126,7 @@ private fun organize(lexer: Lexer): Either<Error, MutableList<Token>> {
 
         parser = onTokenType(parser, token)
 
-        if (parser.hadError() || wasEmpty(next)) {
+        if (parser.hadError()) {
             break
         }
 
